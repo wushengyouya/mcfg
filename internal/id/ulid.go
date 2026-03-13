@@ -13,10 +13,12 @@ import (
 	"mcfg/internal/exitcode"
 )
 
+// Generator 定义生成字符串 ID 的接口。
 type Generator interface {
 	New() (string, error)
 }
 
+// ULIDGenerator 使用 ULID 生成全局唯一标识。
 type ULIDGenerator struct{}
 
 var (
@@ -24,6 +26,7 @@ var (
 	entropy   = ulid.Monotonic(rand.Reader, 0)
 )
 
+// New 生成一个按时间有序的 ULID 字符串。
 func (ULIDGenerator) New() (string, error) {
 	entropyMu.Lock()
 	defer entropyMu.Unlock()
@@ -31,6 +34,7 @@ func (ULIDGenerator) New() (string, error) {
 	return ulid.MustNew(ulid.Timestamp(time.Now().UTC()), entropy).String(), nil
 }
 
+// MatchByPrefix 根据前缀在候选 ID 列表中解析唯一匹配项。
 func MatchByPrefix(prefix string, ids []string) (string, error) {
 	if len(prefix) < 8 {
 		return "", fmt.Errorf("%w: id prefix must be at least 8 characters", exitcode.ErrParam)

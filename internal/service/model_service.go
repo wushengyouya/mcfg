@@ -17,12 +17,14 @@ var reservedModelEnvKeys = map[string]struct{}{
 	"ANTHROPIC_MODEL":      {},
 }
 
+// ModelService 负责模型配置的增删改查与绑定切换。
 type ModelService struct {
 	store ConfigStore
 	clock Clock
 	ids   id.Generator
 }
 
+// ModelAddInput 描述新增模型时可提交的字段。
 type ModelAddInput struct {
 	Name        string
 	AuthToken   string
@@ -32,6 +34,7 @@ type ModelAddInput struct {
 	Description string
 }
 
+// ModelEditInput 描述编辑模型时可变更的字段。
 type ModelEditInput struct {
 	Name        *string
 	AuthToken   *string
@@ -43,6 +46,7 @@ type ModelEditInput struct {
 	Description *string
 }
 
+// NewModelService 创建模型服务实例。
 func NewModelService(store ConfigStore, clock Clock, gen id.Generator) *ModelService {
 	return &ModelService{
 		store: store,
@@ -51,6 +55,7 @@ func NewModelService(store ConfigStore, clock Clock, gen id.Generator) *ModelSer
 	}
 }
 
+// Add 新增一个手工维护的模型配置。
 func (s *ModelService) Add(ctx context.Context, input ModelAddInput) (model.ModelProfile, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -66,6 +71,7 @@ func (s *ModelService) Add(ctx context.Context, input ModelAddInput) (model.Mode
 		return model.ModelProfile{}, fmt.Errorf("%w: generate model id: %v", exitcode.ErrBusiness, err)
 	}
 	timestamp := nowRFC3339(s.clock)
+	// 模型的三项核心连接信息统一拼装进 Env，外部自定义变量只能走 custom env。
 	profile := model.ModelProfile{
 		ID:          idValue,
 		Name:        input.Name,
@@ -86,6 +92,7 @@ func (s *ModelService) Add(ctx context.Context, input ModelAddInput) (model.Mode
 	return profile, nil
 }
 
+// List 返回当前全部模型配置。
 func (s *ModelService) List(ctx context.Context) ([]model.ModelProfile, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -94,6 +101,7 @@ func (s *ModelService) List(ctx context.Context) ([]model.ModelProfile, error) {
 	return cfg.Models, nil
 }
 
+// Edit 根据 ID 前缀更新指定模型。
 func (s *ModelService) Edit(ctx context.Context, prefix string, input ModelEditInput) (model.ModelProfile, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -113,6 +121,7 @@ func (s *ModelService) Edit(ctx context.Context, prefix string, input ModelEditI
 		current.Description = *input.Description
 	}
 
+	// 先拆出自定义环境变量，再根据 Replace/Clear 语义更新，避免误覆盖保留字段。
 	customEnv := extractCustomModelEnv(current.Env)
 	switch {
 	case input.ClearEnv:
@@ -124,6 +133,7 @@ func (s *ModelService) Edit(ctx context.Context, prefix string, input ModelEditI
 		customEnv = cloneMap(input.Env)
 	}
 
+	// 保留字段单独处理，这样 CLI 可以通过专用 flag 精准更新认证与模型绑定信息。
 	token := current.Env["ANTHROPIC_AUTH_TOKEN"]
 	if input.AuthToken != nil {
 		token = *input.AuthToken
@@ -150,6 +160,7 @@ func (s *ModelService) Edit(ctx context.Context, prefix string, input ModelEditI
 	return current, nil
 }
 
+// Remove 根据 ID 前缀删除指定模型。
 func (s *ModelService) Remove(ctx context.Context, prefix string, force bool) error {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -161,6 +172,7 @@ func (s *ModelService) Remove(ctx context.Context, prefix string, force bool) er
 		return err
 	}
 	target := cfg.Models[index]
+	// 正在使用的模型默认不允许删除，除非显式 force，同时清除当前绑定关系。
 	if cfg.ClaudeBinding.CurrentModelID == target.ID {
 		if !force {
 			return fmt.Errorf("%w: model %s is currently bound; use `mcfg model use <other-id>` or `mcfg model remove %s --force`", exitcode.ErrBusiness, target.ID, prefix)
@@ -172,6 +184,7 @@ func (s *ModelService) Remove(ctx context.Context, prefix string, force bool) er
 	return s.store.Save(ctx, cfg)
 }
 
+// Use 根据 ID 前缀切换当前绑定模型。
 func (s *ModelService) Use(ctx context.Context, prefix string) (model.ModelProfile, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -190,6 +203,7 @@ func (s *ModelService) Use(ctx context.Context, prefix string) (model.ModelProfi
 }
 
 func findModelIndex(items []model.ModelProfile, prefix string) (int, error) {
+	// 所有查找都支持前缀匹配，便于 CLI 使用短 ID 操作对象。
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
 		ids = append(ids, item.ID)
@@ -207,6 +221,7 @@ func findModelIndex(items []model.ModelProfile, prefix string) (int, error) {
 }
 
 func validateModelEnv(env map[string]string) error {
+	// 保留键必须通过专用参数传入，避免普通 env 覆盖业务关键字段。
 	for key := range env {
 		if _, reserved := reservedModelEnvKeys[key]; reserved {
 			return fmt.Errorf("%w: reserved env key %s must use a dedicated flag", exitcode.ErrParam, key)
@@ -227,6 +242,7 @@ func extractCustomModelEnv(env map[string]string) map[string]string {
 }
 
 func buildModelEnv(token, baseURL, modelName string, custom map[string]string) map[string]string {
+	// 先复制自定义变量，再覆盖保留键，确保最终结果始终以显式参数为准。
 	env := cloneMap(custom)
 	env["ANTHROPIC_AUTH_TOKEN"] = token
 	env["ANTHROPIC_BASE_URL"] = baseURL

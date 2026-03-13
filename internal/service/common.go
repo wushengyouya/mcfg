@@ -8,11 +8,13 @@ import (
 	"mcfg/internal/model"
 )
 
+// ConfigStore 定义服务层依赖的配置持久化接口。
 type ConfigStore interface {
 	Load(context.Context) (model.ConfigRoot, error)
 	Save(context.Context, model.ConfigRoot) error
 }
 
+// Clock 定义服务层依赖的时间来源接口。
 type Clock interface {
 	Now() time.Time
 }
@@ -42,6 +44,7 @@ func defaultIDGenerator(gen id.Generator) id.Generator {
 }
 
 func cloneMap(input map[string]string) map[string]string {
+	// 统一返回非 nil map，减少业务层额外的空值判断。
 	if len(input) == 0 {
 		return map[string]string{}
 	}

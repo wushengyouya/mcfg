@@ -16,6 +16,7 @@ const (
 	filePerm = 0o600
 )
 
+// Store 负责管理 mcfg 本地配置文件及备份目录。
 type Store struct {
 	homeDir    string
 	configDir  string
@@ -23,6 +24,7 @@ type Store struct {
 	backupsDir string
 }
 
+// New 根据用户主目录创建配置存储实例。
 func New(homeDir string) *Store {
 	configDir := filepath.Join(homeDir, ".mcfg")
 	return &Store{
@@ -33,10 +35,16 @@ func New(homeDir string) *Store {
 	}
 }
 
-func (s *Store) ConfigDir() string  { return s.configDir }
+// ConfigDir 返回配置目录路径。
+func (s *Store) ConfigDir() string { return s.configDir }
+
+// ConfigPath 返回主配置文件路径。
 func (s *Store) ConfigPath() string { return s.configPath }
+
+// BackupsDir 返回备份目录路径。
 func (s *Store) BackupsDir() string { return s.backupsDir }
 
+// Init 初始化配置目录和默认配置文件。
 func (s *Store) Init(ctx context.Context) (bool, error) {
 	select {
 	case <-ctx.Done():
@@ -44,6 +52,7 @@ func (s *Store) Init(ctx context.Context) (bool, error) {
 	default:
 	}
 
+	// 先建目录再校正权限，保证配置中心默认只对当前用户可读写。
 	if err := os.MkdirAll(s.backupsDir, dirPerm); err != nil {
 		return false, fmt.Errorf("%w: create config directories: %v", exitcode.ErrIO, err)
 	}
@@ -67,6 +76,7 @@ func (s *Store) Init(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+// Load 从磁盘读取并解析配置文件。
 func (s *Store) Load(ctx context.Context) (model.ConfigRoot, error) {
 	select {
 	case <-ctx.Done():
@@ -82,6 +92,7 @@ func (s *Store) Load(ctx context.Context) (model.ConfigRoot, error) {
 		return model.ConfigRoot{}, fmt.Errorf("%w: read config: %v", exitcode.ErrIO, err)
 	}
 
+	// 所有配置解析都汇总到 model.ParseConfigRoot，确保默认值修正逻辑只维护一份。
 	cfg, err := model.ParseConfigRoot(data)
 	if err != nil {
 		return model.ConfigRoot{}, fmt.Errorf("%w: parse config: %v", exitcode.ErrIO, err)
@@ -89,6 +100,7 @@ func (s *Store) Load(ctx context.Context) (model.ConfigRoot, error) {
 	return cfg, nil
 }
 
+// Save 以原子替换方式将配置写回磁盘。
 func (s *Store) Save(ctx context.Context, cfg model.ConfigRoot) error {
 	select {
 	case <-ctx.Done():
@@ -105,6 +117,7 @@ func (s *Store) Save(ctx context.Context, cfg model.ConfigRoot) error {
 		return fmt.Errorf("%w: marshal config: %v", exitcode.ErrIO, err)
 	}
 
+	// 采用临时文件 + rename 的方式落盘，避免进程中断时写出半截配置文件。
 	tmpFile, err := os.CreateTemp(s.configDir, "config-*.tmp")
 	if err != nil {
 		return fmt.Errorf("%w: create temp config: %v", exitcode.ErrIO, err)

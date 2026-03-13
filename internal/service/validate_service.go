@@ -11,12 +11,14 @@ import (
 	"mcfg/internal/validator"
 )
 
+// ValidateService 负责检查配置中心与目标文件的有效性和同步状态。
 type ValidateService struct {
 	store   ConfigStore
 	adapter adapter.Claude
 	homeDir string
 }
 
+// ValidateReport 描述一次校验操作的完整结果。
 type ValidateReport struct {
 	Valid      bool              `json:"valid"`
 	SyncStatus string            `json:"sync_status"`
@@ -28,6 +30,7 @@ type ValidateReport struct {
 	} `json:"drift"`
 }
 
+// NewValidateService 创建校验服务实例。
 func NewValidateService(store ConfigStore, homeDir string) *ValidateService {
 	return &ValidateService{
 		store:   store,
@@ -36,6 +39,7 @@ func NewValidateService(store ConfigStore, homeDir string) *ValidateService {
 	}
 }
 
+// Validate 校验配置完整性，并检查目标文件是否与当前配置保持一致。
 func (s *ValidateService) Validate(ctx context.Context) (ValidateReport, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {

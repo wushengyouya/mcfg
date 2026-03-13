@@ -16,6 +16,7 @@ import (
 	"mcfg/internal/model"
 )
 
+// SyncService 负责将本地配置中心同步到 Claude Code 目标文件。
 type SyncService struct {
 	store      ConfigStore
 	adapter    adapter.Claude
@@ -26,21 +27,25 @@ type SyncService struct {
 	hooks      SyncTestHooks
 }
 
+// SyncOptions 描述一次同步操作的执行选项。
 type SyncOptions struct {
 	DryRun     bool
 	InitTarget bool
 }
 
+// SyncResult 描述一次同步操作的结果。
 type SyncResult struct {
 	ChangedPaths []string `json:"changed_paths"`
 	BackupID     string   `json:"backup_id,omitempty"`
 }
 
+// SyncTestHooks 提供测试时插入故障的钩子。
 type SyncTestHooks struct {
 	BeforeWriteSettings   func() error
 	BeforeWriteClaudeJSON func() error
 }
 
+// NewSyncService 创建同步服务实例。
 func NewSyncService(store ConfigStore, homeDir, backupsDir string, clock Clock, gen id.Generator) *SyncService {
 	return &SyncService{
 		store:      store,
@@ -52,16 +57,19 @@ func NewSyncService(store ConfigStore, homeDir, backupsDir string, clock Clock, 
 	}
 }
 
+// SetTestHooks 设置同步流程中的测试钩子。
 func (s *SyncService) SetTestHooks(hooks SyncTestHooks) {
 	s.hooks = hooks
 }
 
+// Sync 将配置中心内容写入 Claude Code 的目标配置文件。
 func (s *SyncService) Sync(ctx context.Context, options SyncOptions) (SyncResult, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
 		return SyncResult{}, err
 	}
 
+	// 如果目标文件缺失，可按需初始化骨架文件；否则直接失败，避免静默生成用户未预期的配置。
 	settingsPath, claudeJSONPath := s.targetPaths()
 	if err := ensureTargets(settingsPath, claudeJSONPath, s.homeDir, options.InitTarget); err != nil {
 		return SyncResult{}, err
@@ -76,6 +84,7 @@ func (s *SyncService) Sync(ctx context.Context, options SyncOptions) (SyncResult
 		return SyncResult{}, fmt.Errorf("%w: read .claude.json: %v", exitcode.ErrIO, err)
 	}
 
+	// 先基于现有文件渲染期望内容，只改 mcfg 接管的字段，不碰其他用户自定义配置。
 	desiredSettings, err := s.adapter.RenderSettings(settingsData, currentModel(cfg))
 	if err != nil {
 		return SyncResult{}, fmt.Errorf("%w: parse settings.json: %v", exitcode.ErrBusiness, err)
@@ -93,6 +102,7 @@ func (s *SyncService) Sync(ctx context.Context, options SyncOptions) (SyncResult
 		return SyncResult{ChangedPaths: changedPaths}, nil
 	}
 
+	// 真正写盘前先做备份并落索引，后续任一步失败都能回滚。
 	backupID, err := s.createBackup(settingsPath, claudeJSONPath, settingsData, claudeJSONData, &cfg)
 	if err != nil {
 		return SyncResult{}, err
@@ -101,6 +111,7 @@ func (s *SyncService) Sync(ctx context.Context, options SyncOptions) (SyncResult
 		return SyncResult{}, err
 	}
 
+	// 写入前校验原文件校验和，防止同步过程中被外部进程并发改写。
 	settingsHash := checksum(settingsData)
 	claudeHash := checksum(claudeJSONData)
 	if err := writeAtomicChecked(settingsPath, desiredSettings, settingsHash, s.hooks.BeforeWriteSettings); err != nil {
@@ -119,6 +130,7 @@ func (s *SyncService) Sync(ctx context.Context, options SyncOptions) (SyncResult
 }
 
 func (s *SyncService) rollbackAfterFailure(backupID, settingsPath, claudeJSONPath string, originalErr error) error {
+	// settings.json 已写成功但 claude.json 失败时，需要把两个文件一起恢复到同步前状态。
 	settingsBackupPath := filepath.Join(s.backupsDir, backupID, "settings.json")
 	claudeBackupPath := filepath.Join(s.backupsDir, backupID, "claude.json")
 
@@ -154,6 +166,7 @@ func (s *SyncService) targetPaths() (string, string) {
 }
 
 func ensureTargets(settingsPath, claudeJSONPath, homeDir string, initTarget bool) error {
+	// 只检查 mcfg 需要接管的两个 Claude 配置文件是否存在。
 	missing := []string{}
 	if _, err := os.Stat(settingsPath); err != nil {
 		if os.IsNotExist(err) {
@@ -176,6 +189,7 @@ func ensureTargets(settingsPath, claudeJSONPath, homeDir string, initTarget bool
 		return fmt.Errorf("%w: target files missing: %v; use `mcfg sync --init-target`", exitcode.ErrBusiness, missing)
 	}
 
+	// 初始化骨架时保留 Claude 期望的数据结构，避免后续渲染逻辑处理 nil 分支。
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o700); err != nil {
 		return fmt.Errorf("%w: create claude directory: %v", exitcode.ErrIO, err)
 	}
@@ -202,6 +216,7 @@ func writeAtomic(path string, data []byte) error {
 }
 
 func writeAtomicChecked(path string, data []byte, expectedChecksum string, beforeCheck func() error) error {
+	// 和 Store.Save 一样走原子替换，但这里额外支持写前钩子与并发修改检测。
 	tmp, err := os.CreateTemp(filepath.Dir(path), "*.tmp")
 	if err != nil {
 		return fmt.Errorf("%w: create temp file: %v", exitcode.ErrIO, err)
@@ -230,6 +245,7 @@ func writeAtomicChecked(path string, data []byte, expectedChecksum string, befor
 		}
 	}
 	if expectedChecksum != "" {
+		// 二次读取目标文件，对比写前快照，发现外部改动时中止覆盖。
 		current, err := os.ReadFile(path)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -256,6 +272,7 @@ func checksum(data []byte) string {
 func currentModel(cfg model.ConfigRoot) *model.ModelProfile {
 	for _, item := range cfg.Models {
 		if item.ID == cfg.ClaudeBinding.CurrentModelID {
+			// 返回副本而不是原切片元素地址，避免调用方持有悬挂引用。
 			copy := item
 			return &copy
 		}
@@ -264,6 +281,7 @@ func currentModel(cfg model.ConfigRoot) *model.ModelProfile {
 }
 
 func enabledMCPs(cfg model.ConfigRoot) []model.MCPServer {
+	// 按配置顺序筛出已启用的 MCP，渲染时只输出当前绑定集合。
 	enabled := make([]model.MCPServer, 0, len(cfg.ClaudeBinding.EnabledMCPIDs))
 	for _, server := range cfg.MCPServers {
 		if slices.Contains(cfg.ClaudeBinding.EnabledMCPIDs, server.ID) {

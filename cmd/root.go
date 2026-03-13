@@ -17,6 +17,7 @@ import (
 	"mcfg/internal/store"
 )
 
+// Options 定义构造根命令时可注入的运行参数。
 type Options struct {
 	HomeDir string
 	Stdin   io.Reader
@@ -24,6 +25,7 @@ type Options struct {
 	Stderr  io.Writer
 }
 
+// App 聚合命令层共享的依赖。
 type App struct {
 	HomeDir         string
 	LockPath        string
@@ -36,6 +38,7 @@ type App struct {
 	ValidateService *service.ValidateService
 }
 
+// Execute 执行根命令并将错误转换为进程退出码。
 func Execute(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	homeDir, _ := os.UserHomeDir()
 	cmd := NewRootCommand(Options{
@@ -48,7 +51,9 @@ func Execute(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return exitcode.FromError(cmd.Execute())
 }
 
+// NewRootCommand 构造 mcfg 根命令及其全部子命令。
 func NewRootCommand(opts Options) *cobra.Command {
+	// 这里补齐默认 IO 和 Home 目录，便于测试时注入替身，实际运行时直接回退到系统默认值。
 	if opts.Stdin == nil {
 		opts.Stdin = os.Stdin
 	}
@@ -64,6 +69,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 
 	appStore := store.New(opts.HomeDir)
 	app := &App{
+		// 所有服务都围绕同一个 Store 构建，保证配置读写来源一致。
 		HomeDir:         opts.HomeDir,
 		LockPath:        filepath.Join(appStore.ConfigDir(), "run.lock"),
 		Store:           appStore,
@@ -83,7 +89,8 @@ func NewRootCommand(opts Options) *cobra.Command {
 		Version:       buildinfo.Current().Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE:          withLock(app, nil, func(cmd *cobra.Command, _ []string) error { return runTUI(cmd, app) }),
+		// 不带子命令时进入 TUI，并通过锁保证同一时间只有一个进程改写配置。
+		RunE: withLock(app, nil, func(cmd *cobra.Command, _ []string) error { return runTUI(cmd, app) }),
 	}
 	root.SetIn(opts.Stdin)
 	root.SetOut(opts.Stdout)

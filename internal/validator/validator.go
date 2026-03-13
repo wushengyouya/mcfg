@@ -12,12 +12,14 @@ import (
 
 var envKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// Issue 表示一次校验发现的问题。
 type Issue struct {
 	Path    string `json:"path"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
+// ValidateSource 校验来源字段是否合法。
 func ValidateSource(source model.Source) error {
 	if !source.Valid() {
 		return fmt.Errorf("%w: invalid source %q", exitcode.ErrParam, source)
@@ -25,6 +27,7 @@ func ValidateSource(source model.Source) error {
 	return nil
 }
 
+// ValidateRFC3339 校验时间字段是否符合 RFC3339 格式。
 func ValidateRFC3339(path, value string) error {
 	if value == "" {
 		return nil
@@ -35,6 +38,7 @@ func ValidateRFC3339(path, value string) error {
 	return nil
 }
 
+// ValidateModelProfile 校验单个模型配置是否合法。
 func ValidateModelProfile(profile model.ModelProfile) error {
 	if profile.Name == "" {
 		return fmt.Errorf("%w: model name is required", exitcode.ErrParam)
@@ -65,6 +69,7 @@ func ValidateModelProfile(profile model.ModelProfile) error {
 	return nil
 }
 
+// ValidateMCPServer 校验单个 MCP 服务配置是否合法。
 func ValidateMCPServer(server model.MCPServer) error {
 	if server.Name == "" {
 		return fmt.Errorf("%w: mcp name is required", exitcode.ErrParam)
@@ -97,6 +102,7 @@ func ValidateMCPServer(server model.MCPServer) error {
 	return nil
 }
 
+// ValidateConfigRoot 校验整棵配置树并返回全部问题。
 func ValidateConfigRoot(cfg model.ConfigRoot) []Issue {
 	issues := []Issue{}
 	if cfg.SchemaVersion != model.SchemaVersion {

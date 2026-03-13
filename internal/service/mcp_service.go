@@ -11,12 +11,14 @@ import (
 	"mcfg/internal/validator"
 )
 
+// MCPService 负责 MCP 配置的增删改查与启停绑定。
 type MCPService struct {
 	store ConfigStore
 	clock Clock
 	ids   id.Generator
 }
 
+// MCPAddInput 描述新增 MCP 服务时可提交的字段。
 type MCPAddInput struct {
 	Name        string
 	Command     string
@@ -25,6 +27,7 @@ type MCPAddInput struct {
 	Description string
 }
 
+// MCPEditInput 描述编辑 MCP 服务时可变更的字段。
 type MCPEditInput struct {
 	Name        *string
 	Command     *string
@@ -37,6 +40,7 @@ type MCPEditInput struct {
 	Description *string
 }
 
+// NewMCPService 创建 MCP 服务实例。
 func NewMCPService(store ConfigStore, clock Clock, gen id.Generator) *MCPService {
 	return &MCPService{
 		store: store,
@@ -45,6 +49,7 @@ func NewMCPService(store ConfigStore, clock Clock, gen id.Generator) *MCPService
 	}
 }
 
+// Add 新增一个手工维护的 MCP 服务。
 func (s *MCPService) Add(ctx context.Context, input MCPAddInput) (model.MCPServer, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -56,6 +61,7 @@ func (s *MCPService) Add(ctx context.Context, input MCPAddInput) (model.MCPServe
 		return model.MCPServer{}, fmt.Errorf("%w: generate mcp id: %v", exitcode.ErrBusiness, err)
 	}
 	timestamp := nowRFC3339(s.clock)
+	// MCP 当前只支持 stdio 传输，因此新增时直接固化 transport，减少上层参数复杂度。
 	server := model.MCPServer{
 		ID:          idValue,
 		Name:        input.Name,
@@ -78,6 +84,7 @@ func (s *MCPService) Add(ctx context.Context, input MCPAddInput) (model.MCPServe
 	return server, nil
 }
 
+// List 返回当前全部 MCP 服务配置。
 func (s *MCPService) List(ctx context.Context) ([]model.MCPServer, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -86,6 +93,7 @@ func (s *MCPService) List(ctx context.Context) ([]model.MCPServer, error) {
 	return cfg.MCPServers, nil
 }
 
+// Edit 根据 ID 前缀更新指定 MCP 服务。
 func (s *MCPService) Edit(ctx context.Context, prefix string, input MCPEditInput) (model.MCPServer, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -107,6 +115,7 @@ func (s *MCPService) Edit(ctx context.Context, prefix string, input MCPEditInput
 	if input.Description != nil {
 		current.Description = *input.Description
 	}
+	// Args 和 Env 都支持清空或整体替换，保持命令行语义明确，不做隐式合并。
 	switch {
 	case input.ClearArgs:
 		current.Args = []string{}
@@ -130,6 +139,7 @@ func (s *MCPService) Edit(ctx context.Context, prefix string, input MCPEditInput
 	return current, nil
 }
 
+// Remove 根据 ID 前缀删除指定 MCP 服务。
 func (s *MCPService) Remove(ctx context.Context, prefix string, force bool) error {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -140,6 +150,7 @@ func (s *MCPService) Remove(ctx context.Context, prefix string, force bool) erro
 		return err
 	}
 	target := cfg.MCPServers[index]
+	// 已启用的 MCP 默认不能直接删除，force 时会先从绑定列表中摘除。
 	if slices.Contains(cfg.ClaudeBinding.EnabledMCPIDs, target.ID) {
 		if !force {
 			return fmt.Errorf("%w: mcp %s is enabled; use `mcfg mcp disable %s` or `mcfg mcp remove %s --force`", exitcode.ErrBusiness, target.ID, prefix, prefix)
@@ -150,6 +161,7 @@ func (s *MCPService) Remove(ctx context.Context, prefix string, force bool) erro
 	return s.store.Save(ctx, cfg)
 }
 
+// Enable 根据 ID 前缀启用指定 MCP 服务。
 func (s *MCPService) Enable(ctx context.Context, prefix string) (bool, model.MCPServer, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -160,6 +172,7 @@ func (s *MCPService) Enable(ctx context.Context, prefix string) (bool, model.MCP
 		return false, model.MCPServer{}, err
 	}
 	target := cfg.MCPServers[index]
+	// 返回值中的 bool 表示目标原本是否已经处于启用状态，便于 CLI 输出更准确的提示。
 	if slices.Contains(cfg.ClaudeBinding.EnabledMCPIDs, target.ID) {
 		return true, target, nil
 	}
@@ -170,6 +183,7 @@ func (s *MCPService) Enable(ctx context.Context, prefix string) (bool, model.MCP
 	return false, target, nil
 }
 
+// Disable 根据 ID 前缀禁用指定 MCP 服务。
 func (s *MCPService) Disable(ctx context.Context, prefix string) (bool, model.MCPServer, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -208,6 +222,7 @@ func findMCPIndex(items []model.MCPServer, prefix string) (int, error) {
 }
 
 func deleteString(items []string, target string) []string {
+	// 复用原切片底层数组过滤元素，避免额外分配。
 	filtered := items[:0]
 	for _, item := range items {
 		if item != target {

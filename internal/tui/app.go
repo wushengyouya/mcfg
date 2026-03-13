@@ -27,6 +27,7 @@ const (
 	confirmDeleteMCP   = "delete_mcp"
 )
 
+// BackupItem 表示 TUI 中展示的一条备份摘要。
 type BackupItem struct {
 	ID        string
 	CreatedAt string
@@ -34,6 +35,7 @@ type BackupItem struct {
 	Corrupted bool
 }
 
+// ModelFormInput 表示 TUI 中模型表单的输入值。
 type ModelFormInput struct {
 	Name        string
 	BaseURL     string
@@ -42,6 +44,7 @@ type ModelFormInput struct {
 	Description string
 }
 
+// MCPFormInput 表示 TUI 中 MCP 表单的输入值。
 type MCPFormInput struct {
 	Name        string
 	Command     string
@@ -50,6 +53,7 @@ type MCPFormInput struct {
 	Description string
 }
 
+// Snapshot 表示 TUI 当前展示所需的只读视图数据。
 type Snapshot struct {
 	CurrentModelID   string
 	CurrentModelName string
@@ -62,6 +66,7 @@ type Snapshot struct {
 	MCPServers       []model.MCPServer
 }
 
+// Controller 定义 TUI 与命令服务层之间的交互接口。
 type Controller interface {
 	Refresh() (Snapshot, error)
 	UseModel(id string) (Snapshot, error)
@@ -92,6 +97,7 @@ type formState struct {
 	index  int
 }
 
+// App 表示交互式终端界面的状态机。
 type App struct {
 	index         int
 	modelCursor   int
@@ -109,6 +115,7 @@ type App struct {
 	quitting      bool
 }
 
+// New 根据初始快照和控制器创建 TUI 应用实例。
 func New(snapshot Snapshot, controller Controller) App {
 	snapshot.LockStatus = fallback(snapshot.LockStatus, "exclusive")
 	snapshot.TargetStatus = fallback(snapshot.TargetStatus, "unknown")
@@ -124,10 +131,12 @@ func New(snapshot Snapshot, controller Controller) App {
 	}
 }
 
+// Init 实现 Bubble Tea 模型初始化接口。
 func (a App) Init() tea.Cmd {
 	return nil
 }
 
+// Update 实现 Bubble Tea 模型更新接口。
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -175,6 +184,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+// View 实现 Bubble Tea 模型渲染接口。
 func (a App) View() string {
 	if a.quitting {
 		return "Bye."

@@ -13,13 +13,17 @@ import (
 	"mcfg/internal/exitcode"
 )
 
+// Mode 表示锁的持有模式。
 type Mode string
 
 const (
-	Shared    Mode = "shared"
+	// Shared 表示共享读锁。
+	Shared Mode = "shared"
+	// Exclusive 表示独占写锁。
 	Exclusive Mode = "exclusive"
 )
 
+// Metadata 记录当前锁持有者的元数据。
 type Metadata struct {
 	PID       int    `json:"pid"`
 	StartedAt string `json:"started_at"`
@@ -27,18 +31,21 @@ type Metadata struct {
 	Mode      Mode   `json:"mode"`
 }
 
+// Manager 负责申请和释放文件锁。
 type Manager struct {
 	path     string
 	metaPath string
 	now      func() time.Time
 }
 
+// Handle 表示一次成功获取的锁句柄。
 type Handle struct {
 	file    *os.File
 	manager *Manager
 	mode    Mode
 }
 
+// New 创建指向指定锁文件路径的锁管理器。
 func New(path string, now func() time.Time) *Manager {
 	return &Manager{
 		path:     path,
@@ -47,6 +54,7 @@ func New(path string, now func() time.Time) *Manager {
 	}
 }
 
+// Acquire 以给定模式申请锁，并在独占锁成功时写入持有者元数据。
 func (m *Manager) Acquire(mode Mode, command string) (*Handle, error) {
 	if err := os.MkdirAll(filepath.Dir(m.path), 0o700); err != nil {
 		return nil, fmt.Errorf("%w: create lock directory: %v", exitcode.ErrIO, err)
@@ -88,6 +96,7 @@ func (m *Manager) Acquire(mode Mode, command string) (*Handle, error) {
 	return handle, nil
 }
 
+// Release 释放锁并清理独占锁留下的元数据文件。
 func (h *Handle) Release() error {
 	if h == nil || h.file == nil {
 		return nil

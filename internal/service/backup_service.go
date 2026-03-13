@@ -14,8 +14,10 @@ import (
 	"mcfg/internal/model"
 )
 
+// DefaultBackupKeep 表示默认保留的有效备份数量。
 const DefaultBackupKeep = 3
 
+// BackupService 负责创建、列出、恢复和清理备份。
 type BackupService struct {
 	store      ConfigStore
 	clock      Clock
@@ -25,16 +27,19 @@ type BackupService struct {
 	hooks      BackupTestHooks
 }
 
+// BackupRecord 表示备份及其完整性状态。
 type BackupRecord struct {
 	Meta      model.BackupMeta `json:"meta"`
 	Corrupted bool             `json:"corrupted"`
 }
 
+// BackupTestHooks 提供测试时插入恢复故障的钩子。
 type BackupTestHooks struct {
 	BeforeRestoreSettings   func() error
 	BeforeRestoreClaudeJSON func() error
 }
 
+// NewBackupService 创建备份服务实例。
 func NewBackupService(store ConfigStore, homeDir, backupsDir string, clock Clock, gen id.Generator) *BackupService {
 	return &BackupService{
 		store:      store,
@@ -45,10 +50,12 @@ func NewBackupService(store ConfigStore, homeDir, backupsDir string, clock Clock
 	}
 }
 
+// SetTestHooks 设置备份恢复流程中的测试钩子。
 func (s *BackupService) SetTestHooks(hooks BackupTestHooks) {
 	s.hooks = hooks
 }
 
+// Create 为当前受管目标文件创建一次备份。
 func (s *BackupService) Create(ctx context.Context, reason string) (model.BackupMeta, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -73,6 +80,7 @@ func (s *BackupService) Create(ctx context.Context, reason string) (model.Backup
 	return meta, nil
 }
 
+// List 返回全部备份记录，并标记磁盘上已损坏的备份。
 func (s *BackupService) List(ctx context.Context) ([]BackupRecord, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -96,6 +104,7 @@ func (s *BackupService) List(ctx context.Context) ([]BackupRecord, error) {
 	return records, nil
 }
 
+// Restore 根据 ID 前缀恢复指定备份。
 func (s *BackupService) Restore(ctx context.Context, prefix string) (model.BackupMeta, error) {
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
@@ -139,6 +148,7 @@ func (s *BackupService) Restore(ctx context.Context, prefix string) (model.Backu
 	return meta, nil
 }
 
+// Prune 删除超出保留数量的备份。
 func (s *BackupService) Prune(ctx context.Context, keep int) (int, error) {
 	if keep < 1 {
 		return 0, fmt.Errorf("%w: keep must be >= 1", exitcode.ErrParam)
