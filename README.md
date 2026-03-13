@@ -157,3 +157,7 @@ bash scripts/build-release.sh v0.1.0
 ```
 
 更完整的发布步骤见 `RELEASE.md`。
+
+## 存在的问题
+1. 不需要同步功能，进行操作时直接同步到原始文件
+2. ui设计需要重构
