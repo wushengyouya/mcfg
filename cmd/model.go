@@ -108,7 +108,7 @@ func newModelAddCommand(app *App) *cobra.Command {
 			return err
 		}),
 	}
-	command.Flags().StringVar(&name, "name", "", "Model name")
+	command.Flags().StringVar(&name, "name", "", "Unique model name")
 	command.Flags().StringVar(&baseURL, "base-url", "", "Base URL")
 	command.Flags().StringVar(&modelName, "model", "", "Model name")
 	command.Flags().StringVar(&authToken, "auth-token", "", "Auth token")
@@ -181,7 +181,7 @@ func newModelEditCommand(app *App) *cobra.Command {
 			return err
 		}),
 	}
-	command.Flags().StringVar(&name, "name", "", "Model name")
+	command.Flags().StringVar(&name, "name", "", "Unique model name")
 	command.Flags().StringVar(&baseURL, "base-url", "", "Base URL")
 	command.Flags().StringVar(&modelName, "model", "", "Model name")
 	command.Flags().StringVar(&authToken, "auth-token", "", "Auth token")

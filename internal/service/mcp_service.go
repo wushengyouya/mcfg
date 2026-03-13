@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"mcfg/internal/exitcode"
 	"mcfg/internal/id"
@@ -54,6 +55,9 @@ func (s *MCPService) Add(ctx context.Context, input MCPAddInput) (model.MCPServe
 	cfg, err := s.store.Load(ctx)
 	if err != nil {
 		return model.MCPServer{}, err
+	}
+	if hasMCPNameConflict(cfg.MCPServers, input.Name, "") {
+		return model.MCPServer{}, fmt.Errorf("%w: mcp name %q already exists; choose a different name", exitcode.ErrBusiness, input.Name)
 	}
 
 	idValue, err := s.ids.New()
@@ -107,6 +111,9 @@ func (s *MCPService) Edit(ctx context.Context, prefix string, input MCPEditInput
 
 	current := cfg.MCPServers[index]
 	if input.Name != nil {
+		if hasMCPNameConflict(cfg.MCPServers, *input.Name, current.ID) {
+			return model.MCPServer{}, fmt.Errorf("%w: mcp name %q already exists; choose a different name", exitcode.ErrBusiness, *input.Name)
+		}
 		current.Name = *input.Name
 	}
 	if input.Command != nil {
@@ -219,6 +226,23 @@ func findMCPIndex(items []model.MCPServer, prefix string) (int, error) {
 		}
 	}
 	return -1, fmt.Errorf("%w: mcp %q not found", exitcode.ErrBusiness, prefix)
+}
+
+func hasMCPNameConflict(items []model.MCPServer, name, skipID string) bool {
+	target := normalizeMCPName(name)
+	for _, item := range items {
+		if item.ID == skipID {
+			continue
+		}
+		if normalizeMCPName(item.Name) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeMCPName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
 }
 
 func deleteString(items []string, target string) []string {

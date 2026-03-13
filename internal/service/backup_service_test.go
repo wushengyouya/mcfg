@@ -19,7 +19,7 @@ func TestBackupCreate_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	svc := service.NewBackupService(st, home, st.BackupsDir(), fixedClock{}, stubIDGen{id: "01HQXBG84ESB7XJQ9WAAYH54AM"})
 	meta, err := svc.Create(context.Background(), "manual")
@@ -51,14 +51,14 @@ func TestBackupRestore_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"OLD":"1"}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{"old":{"type":"stdio","command":"old"}}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{"old":{"type":"stdio","command":"old"}}`), 0o600))
 
 	svc := service.NewBackupService(st, home, st.BackupsDir(), fixedClock{}, stubIDGen{id: "01HQXBG84ESB7XJQ9WAAYH54AM"})
 	meta, err := svc.Create(context.Background(), "manual")
 	require.NoError(t, err)
 
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"NEW":"2"}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	_, err = svc.Restore(context.Background(), meta.ID[:8])
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestBackupPrune_Keep1(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	svc1 := service.NewBackupService(st, home, st.BackupsDir(), fixedClock{}, stubIDGen{id: "01HQXBG84ESB7XJQ9WAAYH54AM"})
 	_, err = svc1.Create(context.Background(), "manual")
@@ -101,7 +101,7 @@ func TestBackupRestore_ExternalModification_Detected(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"OLD":"1"}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	svc := service.NewBackupService(st, home, st.BackupsDir(), fixedClock{}, stubIDGen{id: "01HQXBG84ESB7XJQ9WAAYH54AM"})
 	meta, err := svc.Create(context.Background(), "manual")

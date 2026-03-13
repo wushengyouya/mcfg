@@ -200,8 +200,10 @@ func ensureTargets(settingsPath, claudeJSONPath, homeDir string, initTarget bool
 	}
 	if slices.Contains(missing, claudeJSONPath) {
 		data, _ := json.MarshalIndent(map[string]any{
-			homeDir: map[string]any{
-				"mcpServers": map[string]any{},
+			"projects": map[string]any{
+				homeDir: map[string]any{
+					"mcpServers": map[string]any{},
+				},
 			},
 		}, "", "  ")
 		if err := os.WriteFile(claudeJSONPath, append(data, '\n'), 0o600); err != nil {

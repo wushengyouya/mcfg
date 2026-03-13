@@ -7,6 +7,8 @@ import (
 	"mcfg/internal/model"
 )
 
+const managedMCPPath = "projects.<home>.mcpServers"
+
 // Claude 负责渲染 Claude Code 目标配置文件。
 type Claude struct {
 	HomeDir string
@@ -42,9 +44,9 @@ func (c Claude) RenderClaudeJSON(existing []byte, servers []model.MCPServer) ([]
 			return nil, err
 		}
 	}
-	// 仅更新当前 homeDir 节点下的 mcpServers，其他目录或其他字段保持原样。
-	homeNode := getObject(root, c.HomeDir)
-	mcpServers := map[string]any{}
+	// 仅在 projects.<homeDir>.mcpServers 中追加或更新启用的 MCP，其他已有服务器保持原样。
+	projectNode := getProjectNode(root, c.HomeDir)
+	mcpServers := getObject(projectNode, "mcpServers")
 	for _, server := range servers {
 		entry := map[string]any{
 			"type":    server.Transport,
@@ -58,8 +60,7 @@ func (c Claude) RenderClaudeJSON(existing []byte, servers []model.MCPServer) ([]
 		}
 		mcpServers[server.Name] = entry
 	}
-	homeNode["mcpServers"] = mcpServers
-	root[c.HomeDir] = homeNode
+	projectNode["mcpServers"] = mcpServers
 	return json.MarshalIndent(root, "", "  ")
 }
 
@@ -89,12 +90,15 @@ func ClaudeManagedValues(data []byte, homeDir string) (map[string]any, error) {
 			return nil, err
 		}
 	}
-	homeNode := getObject(root, homeDir)
-	mcpServers, ok := homeNode["mcpServers"].(map[string]any)
-	if !ok {
-		mcpServers = map[string]any{}
+	mcpServers := map[string]any{}
+	if projects, ok := root["projects"].(map[string]any); ok {
+		if projectNode, ok := projects[homeDir].(map[string]any); ok {
+			if servers, ok := projectNode["mcpServers"].(map[string]any); ok {
+				mcpServers = servers
+			}
+		}
 	}
-	return map[string]any{"<home>.mcpServers": mcpServers}, nil
+	return map[string]any{managedMCPPath: mcpServers}, nil
 }
 
 func getObject(root map[string]any, key string) map[string]any {
@@ -103,6 +107,16 @@ func getObject(root map[string]any, key string) map[string]any {
 	}
 	value := map[string]any{}
 	root[key] = value
+	return value
+}
+
+func getProjectNode(root map[string]any, homeDir string) map[string]any {
+	projects := getObject(root, "projects")
+	if value, ok := projects[homeDir].(map[string]any); ok {
+		return value
+	}
+	value := map[string]any{}
+	projects[homeDir] = value
 	return value
 }
 
@@ -133,10 +147,10 @@ func DiffManagedPaths(actualSettings, desiredSettings []byte, actualClaude, desi
 	if err != nil {
 		return nil, err
 	}
-	actualData, _ := json.Marshal(actualMCPs["<home>.mcpServers"])
-	desiredData, _ := json.Marshal(desiredMCPs["<home>.mcpServers"])
+	actualData, _ := json.Marshal(actualMCPs[managedMCPPath])
+	desiredData, _ := json.Marshal(desiredMCPs[managedMCPPath])
 	if string(actualData) != string(desiredData) {
-		changes = append(changes, "<home>.mcpServers")
+		changes = append(changes, managedMCPPath)
 	}
 	return changes, nil
 }

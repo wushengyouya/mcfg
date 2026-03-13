@@ -97,7 +97,7 @@ func newMCPAddCommand(app *App) *cobra.Command {
 			return err
 		}),
 	}
-	command.Flags().StringVar(&name, "name", "", "MCP name")
+	command.Flags().StringVar(&name, "name", "", "Unique MCP name")
 	command.Flags().StringVar(&commandValue, "command", "", "Command")
 	command.Flags().StringArrayVar(&args, "args", nil, "Command arguments")
 	command.Flags().StringArrayVar(&envItems, "env", nil, "Environment variables")
@@ -157,7 +157,7 @@ func newMCPEditCommand(app *App) *cobra.Command {
 			return err
 		}),
 	}
-	command.Flags().StringVar(&name, "name", "", "MCP name")
+	command.Flags().StringVar(&name, "name", "", "Unique MCP name")
 	command.Flags().StringVar(&commandValue, "command", "", "Command")
 	command.Flags().StringArrayVar(&args, "args", nil, "Command arguments")
 	command.Flags().StringArrayVar(&envItems, "env", nil, "Environment variables")

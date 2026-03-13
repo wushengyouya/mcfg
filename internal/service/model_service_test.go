@@ -28,6 +28,23 @@ func TestModelAdd_Success(t *testing.T) {
 	require.Equal(t, "1", profile.Env["X_TRACE"])
 }
 
+func TestModelAdd_DuplicateName_Fails(t *testing.T) {
+	cfg := model.NewConfigRoot()
+	cfg.Models = append(cfg.Models, validModel("01HQXBF7M6SJHMR6G32P5D1K7Y"))
+
+	store := &memoryStore{cfg: cfg}
+	svc := service.NewModelService(store, fixedClock{}, stubIDGen{id: "01HQXBF7M6SJHMR6G32P5D1K7Z"})
+
+	_, err := svc.Add(context.Background(), service.ModelAddInput{
+		Name:      " claude sonnet ",
+		AuthToken: "token-2",
+		BaseURL:   "https://example.org",
+		Model:     "claude-sonnet-4-1",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already exists")
+}
+
 func TestModelEdit_ReplaceEnv(t *testing.T) {
 	cfg := model.NewConfigRoot()
 	cfg.Models = append(cfg.Models, model.ModelProfile{
@@ -54,6 +71,33 @@ func TestModelEdit_ReplaceEnv(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, updated.Env, "X_OLD")
 	require.Equal(t, "2", updated.Env["X_NEW"])
+}
+
+func TestModelEdit_RenameToDuplicate_Fails(t *testing.T) {
+	cfg := model.NewConfigRoot()
+	cfg.Models = append(cfg.Models,
+		validModel("01HQXBF7M6SJHMR6G32P5D1K7Y"),
+		model.ModelProfile{
+			ID:   "01HQXBF7M6SJHMR6G32P5D1K7Z",
+			Name: "Claude Opus",
+			Env: map[string]string{
+				"ANTHROPIC_AUTH_TOKEN": "token",
+				"ANTHROPIC_BASE_URL":   "https://example.com",
+				"ANTHROPIC_MODEL":      "claude-opus",
+			},
+			Source:    model.SourceManual,
+			CreatedAt: "2026-03-10T10:00:00Z",
+			UpdatedAt: "2026-03-10T10:00:00Z",
+		},
+	)
+
+	store := &memoryStore{cfg: cfg}
+	svc := service.NewModelService(store, fixedClock{}, stubIDGen{})
+
+	name := "CLAUDE SONNET"
+	_, err := svc.Edit(context.Background(), "01HQXBF7M6SJHMR6G32P5D1K7Z", service.ModelEditInput{Name: &name})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already exists")
 }
 
 func TestModelRemove_Bound_NoForce(t *testing.T) {

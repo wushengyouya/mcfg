@@ -141,17 +141,21 @@ func (s *Scanner) scanMCPs(path string, existing model.ConfigRoot) ([]model.MCPS
 		return nil, []Warning{{Path: path, Code: "claude_json_read_failed", Message: err.Error()}}
 	}
 
-	var payload map[string]map[string]any
+	var payload map[string]any
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, []Warning{{Path: path, Code: "claude_json_corrupted", Message: "Claude user mcp config is corrupted"}}
 	}
 
-	// .claude.json 以 homeDir 为顶层节点，扫描时只处理当前用户目录对应的配置。
-	homeNode, ok := payload[s.homeDir]
+	// 只处理 projects.<homeDir>.mcpServers 对应的 MCP 服务器块。
+	projects, ok := payload["projects"].(map[string]any)
 	if !ok {
 		return nil, nil
 	}
-	rawServers, ok := homeNode["mcpServers"].(map[string]any)
+	projectNode, ok := projects[s.homeDir].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	rawServers, ok := projectNode["mcpServers"].(map[string]any)
 	if !ok {
 		return nil, nil
 	}

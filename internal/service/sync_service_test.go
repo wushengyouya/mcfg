@@ -28,7 +28,7 @@ func TestSync_Success_WritesSettings(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"EXTRA":"1"}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	svc := service.NewSyncService(st, home, st.BackupsDir(), fixedClock{}, stubIDGen{id: "01HQXBG84ESB7XJQ9WAAYH54AM"})
 	result, err := svc.Sync(context.Background(), service.SyncOptions{})
@@ -61,6 +61,9 @@ func TestSync_InitTarget_CreatesFiles(t *testing.T) {
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(home, ".claude", "settings.json"))
 	require.FileExists(t, filepath.Join(home, ".claude.json"))
+	claudeJSONData, err := os.ReadFile(filepath.Join(home, ".claude.json"))
+	require.NoError(t, err)
+	require.JSONEq(t, string(projectScopedClaudeJSON(home, `{}`)), string(claudeJSONData))
 }
 
 func TestSync_DryRun_NoWrite(t *testing.T) {
@@ -76,7 +79,7 @@ func TestSync_DryRun_NoWrite(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	svc := service.NewSyncService(st, home, st.BackupsDir(), fixedClock{}, stubIDGen{id: "01HQXBG84ESB7XJQ9WAAYH54AM"})
 	_, err = svc.Sync(context.Background(), service.SyncOptions{DryRun: true})
@@ -101,7 +104,7 @@ func TestSync_WriteFail_Rollback(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	originalSettings := []byte(`{"env":{"ORIGINAL":"1"}}`)
-	originalClaudeJSON := []byte(`{"` + home + `":{"mcpServers":{"old":{"type":"stdio","command":"old"}}}}`)
+	originalClaudeJSON := projectScopedClaudeJSON(home, `{"old":{"type":"stdio","command":"old"}}`)
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), originalSettings, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), originalClaudeJSON, 0o600))
 
@@ -137,7 +140,7 @@ func TestSync_ExternalModification_Detected(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"ORIGINAL":"1"}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	svc := service.NewSyncService(st, home, st.BackupsDir(), fixedClock{}, stubIDGen{id: "01HQXBG84ESB7XJQ9WAAYH54AM"})
 	svc.SetTestHooks(service.SyncTestHooks{

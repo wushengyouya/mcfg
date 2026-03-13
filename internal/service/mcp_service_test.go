@@ -25,6 +25,45 @@ func TestMCPAdd_Success(t *testing.T) {
 	require.Equal(t, "/tmp", server.Env["ROOT"])
 }
 
+func TestMCPAdd_DuplicateName_Fails(t *testing.T) {
+	cfg := model.NewConfigRoot()
+	cfg.MCPServers = append(cfg.MCPServers, validMCP("01HQXBG84ESB7XJQ9WAAYH54AM"))
+
+	store := &memoryStore{cfg: cfg}
+	svc := service.NewMCPService(store, fixedClock{}, stubIDGen{id: "01HQXBG84ESB7XJQ9WAAYH54AN"})
+
+	_, err := svc.Add(context.Background(), service.MCPAddInput{
+		Name:    " Filesystem ",
+		Command: "uvx",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already exists")
+}
+
+func TestMCPEdit_RenameToDuplicate_Fails(t *testing.T) {
+	cfg := model.NewConfigRoot()
+	cfg.MCPServers = append(cfg.MCPServers,
+		validMCP("01HQXBG84ESB7XJQ9WAAYH54AM"),
+		model.MCPServer{
+			ID:        "01HQXBG84ESB7XJQ9WAAYH54AN",
+			Name:      "github",
+			Transport: "stdio",
+			Command:   "npx",
+			Source:    model.SourceManual,
+			CreatedAt: "2026-03-10T10:00:00Z",
+			UpdatedAt: "2026-03-10T10:00:00Z",
+		},
+	)
+
+	store := &memoryStore{cfg: cfg}
+	svc := service.NewMCPService(store, fixedClock{}, stubIDGen{})
+
+	name := "FILESYSTEM"
+	_, err := svc.Edit(context.Background(), "01HQXBG84ESB7XJQ9WAAYH54AN", service.MCPEditInput{Name: &name})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already exists")
+}
+
 func TestMCPRemove_Enabled_WithForce(t *testing.T) {
 	cfg := model.NewConfigRoot()
 	cfg.MCPServers = append(cfg.MCPServers, validMCP("01HQXBG84ESB7XJQ9WAAYH54AM"))

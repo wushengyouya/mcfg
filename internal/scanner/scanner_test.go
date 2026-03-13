@@ -55,13 +55,26 @@ func TestScan_RealPath(t *testing.T) {
 func TestScan_ClaudeJSON_ExtractMCPs(t *testing.T) {
 	home := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{
+  "numStartups": 82,
   "`+home+`": {
     "mcpServers": {
-      "github": {
+      "legacy": {
         "type": "stdio",
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-github"],
-        "env": {"GITHUB_TOKEN": "x"}
+        "command": "node",
+        "args": ["legacy.js"],
+        "env": {"LEGACY_TOKEN": "ignored"}
+      }
+    }
+  },
+  "projects": {
+    "`+home+`": {
+      "mcpServers": {
+        "github": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-github"],
+          "env": {"GITHUB_TOKEN": "x"}
+        }
       }
     }
   }
@@ -71,6 +84,8 @@ func TestScan_ClaudeJSON_ExtractMCPs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.MCPServers, 1)
 	require.Equal(t, "github", result.MCPServers[0].Name)
+	require.Equal(t, "npx", result.MCPServers[0].Command)
+	require.Equal(t, "x", result.MCPServers[0].Env["GITHUB_TOKEN"])
 }
 
 func TestScan_BothCorrupted(t *testing.T) {

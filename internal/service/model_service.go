@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"mcfg/internal/exitcode"
 	"mcfg/internal/id"
@@ -65,6 +66,9 @@ func (s *ModelService) Add(ctx context.Context, input ModelAddInput) (model.Mode
 	if err := validateModelEnv(input.Env); err != nil {
 		return model.ModelProfile{}, err
 	}
+	if hasModelNameConflict(cfg.Models, input.Name, "") {
+		return model.ModelProfile{}, fmt.Errorf("%w: model name %q already exists; choose a different name", exitcode.ErrBusiness, input.Name)
+	}
 
 	idValue, err := s.ids.New()
 	if err != nil {
@@ -115,6 +119,9 @@ func (s *ModelService) Edit(ctx context.Context, prefix string, input ModelEditI
 
 	current := cfg.Models[index]
 	if input.Name != nil {
+		if hasModelNameConflict(cfg.Models, *input.Name, current.ID) {
+			return model.ModelProfile{}, fmt.Errorf("%w: model name %q already exists; choose a different name", exitcode.ErrBusiness, *input.Name)
+		}
 		current.Name = *input.Name
 	}
 	if input.Description != nil {
@@ -218,6 +225,23 @@ func findModelIndex(items []model.ModelProfile, prefix string) (int, error) {
 		}
 	}
 	return -1, fmt.Errorf("%w: model %q not found", exitcode.ErrBusiness, prefix)
+}
+
+func hasModelNameConflict(items []model.ModelProfile, name, skipID string) bool {
+	target := normalizeName(name)
+	for _, item := range items {
+		if item.ID == skipID {
+			continue
+		}
+		if normalizeName(item.Name) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
 }
 
 func validateModelEnv(env map[string]string) error {

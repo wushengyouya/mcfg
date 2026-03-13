@@ -26,7 +26,7 @@ func TestValidate_TargetSync_OutOfSync(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	report, err := service.NewValidateService(st, home).Validate(context.Background())
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestValidate_TargetSync_InSync(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{"ANTHROPIC_AUTH_TOKEN":"token","ANTHROPIC_BASE_URL":"https://example.com","ANTHROPIC_MODEL":"claude"}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	report, err := service.NewValidateService(st, home).Validate(context.Background())
 	require.NoError(t, err)

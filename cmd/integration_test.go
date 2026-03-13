@@ -44,6 +44,33 @@ func TestCLI_ModelAdd_Success(t *testing.T) {
 	require.Contains(t, stdout, "added model")
 }
 
+func TestCLI_ModelAdd_DuplicateName_Fails(t *testing.T) {
+	home := t.TempDir()
+	_, _, code := executeInHome(t, home, nil, "init")
+	require.Equal(t, exitcode.Success, code)
+
+	_, _, code = executeInHome(t, home, nil,
+		"model", "add",
+		"--name", "Claude Sonnet",
+		"--base-url", "https://example.com",
+		"--model", "claude-sonnet-4-0",
+		"--auth-token", "secret",
+	)
+	require.Equal(t, exitcode.Success, code)
+
+	_, _, err := executeErrInHome(t, home, nil,
+		"model", "add",
+		"--name", "claude sonnet",
+		"--base-url", "https://example.org",
+		"--model", "claude-sonnet-4-1",
+		"--auth-token", "secret-2",
+	)
+	require.Error(t, err)
+	require.Equal(t, exitcode.Business, exitcode.FromError(err))
+	require.Contains(t, err.Error(), "already exists")
+	require.Contains(t, err.Error(), "choose a different name")
+}
+
 func TestCLI_Import_Success(t *testing.T) {
 	home := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
@@ -127,6 +154,21 @@ func TestCLI_ModelEdit_Success(t *testing.T) {
 	require.Equal(t, exitcode.Success, code)
 	require.Contains(t, listOutput, "Claude Opus")
 	require.Contains(t, listOutput, "claude-opus-4-1")
+}
+
+func TestCLI_MCPEAdd_DuplicateName_Fails(t *testing.T) {
+	home := t.TempDir()
+	_, _, code := executeInHome(t, home, nil, "init")
+	require.Equal(t, exitcode.Success, code)
+
+	_, _, code = executeInHome(t, home, nil, "mcp", "add", "--name", "filesystem", "--command", "npx")
+	require.Equal(t, exitcode.Success, code)
+
+	_, _, err := executeErrInHome(t, home, nil, "mcp", "add", "--name", "Filesystem", "--command", "uvx")
+	require.Error(t, err)
+	require.Equal(t, exitcode.Business, exitcode.FromError(err))
+	require.Contains(t, err.Error(), "already exists")
+	require.Contains(t, err.Error(), "choose a different name")
 }
 
 func TestCLI_ModelRemove_Success(t *testing.T) {
@@ -233,7 +275,7 @@ func TestCLI_ModelUse_WithSync_Success(t *testing.T) {
 	home := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 
 	_, _, code := executeInHome(t, home, nil, "init")
 	require.Equal(t, exitcode.Success, code)
@@ -476,7 +518,7 @@ func TestCLI_BackupCreate_AndList(t *testing.T) {
 	home := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 	_, _, code := executeInHome(t, home, nil, "init")
 	require.Equal(t, exitcode.Success, code)
 
@@ -493,7 +535,7 @@ func TestCLI_BackupCreate_JSON(t *testing.T) {
 	home := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 	_, _, code := executeInHome(t, home, nil, "init")
 	require.Equal(t, exitcode.Success, code)
 
@@ -506,7 +548,7 @@ func TestCLI_BackupPrune_Success(t *testing.T) {
 	home := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 	_, _, code := executeInHome(t, home, nil, "init")
 	require.Equal(t, exitcode.Success, code)
 
@@ -524,7 +566,7 @@ func TestCLI_BackupPrune_JSON(t *testing.T) {
 	home := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(`{"env":{}}`), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"`+home+`":{"mcpServers":{}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".claude.json"), projectScopedClaudeJSON(home, `{}`), 0o600))
 	_, _, code := executeInHome(t, home, nil, "init")
 	require.Equal(t, exitcode.Success, code)
 	_, _, code = executeInHome(t, home, nil, "backup", "create")
