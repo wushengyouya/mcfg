@@ -82,17 +82,15 @@ func (s *Scanner) scanSettings(path string, existing model.ConfigRoot) (model.Mo
 		return model.ModelProfile{}, &Warning{Path: path, Code: "settings_read_failed", Message: err.Error()}, false
 	}
 
-	var payload struct {
-		Env map[string]string `json:"env"`
-	}
-	if err := json.Unmarshal(data, &payload); err != nil {
+	env, err := parseSettingsEnv(data)
+	if err != nil {
 		return model.ModelProfile{}, &Warning{Path: path, Code: "settings_corrupted", Message: "Claude settings.json is corrupted"}, false
 	}
 	// settings.json 里缺任一关键字段，都视为没有可导入的模型，而不是报错。
-	if payload.Env["ANTHROPIC_AUTH_TOKEN"] == "" || payload.Env["ANTHROPIC_BASE_URL"] == "" || payload.Env["ANTHROPIC_MODEL"] == "" {
+	if env["ANTHROPIC_AUTH_TOKEN"] == "" || env["ANTHROPIC_BASE_URL"] == "" || env["ANTHROPIC_MODEL"] == "" {
 		return model.ModelProfile{}, nil, false
 	}
-	if hasDuplicateModel(existing.Models, payload.Env["ANTHROPIC_MODEL"], payload.Env["ANTHROPIC_BASE_URL"]) {
+	if hasDuplicateModel(existing.Models, env["ANTHROPIC_MODEL"], env["ANTHROPIC_BASE_URL"]) {
 		return model.ModelProfile{}, &Warning{Path: path, Code: "model_skipped", Message: "duplicate model skipped"}, false
 	}
 
@@ -102,12 +100,36 @@ func (s *Scanner) scanSettings(path string, existing model.ConfigRoot) (model.Mo
 	}
 	return model.ModelProfile{
 		ID:        idValue,
-		Name:      payload.Env["ANTHROPIC_MODEL"],
-		Env:       payload.Env,
+		Name:      env["ANTHROPIC_MODEL"],
+		Env:       env,
 		Source:    model.SourceImported,
 		CreatedAt: s.now(),
 		UpdatedAt: s.now(),
 	}, nil, true
+}
+
+func parseSettingsEnv(data []byte) (map[string]string, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, err
+	}
+
+	if payload["env"] == nil {
+		return map[string]string{}, nil
+	}
+
+	rawEnv, ok := payload["env"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("settings env must be an object")
+	}
+
+	env := make(map[string]string, len(rawEnv))
+	for key, value := range rawEnv {
+		if stringValue, ok := value.(string); ok {
+			env[key] = stringValue
+		}
+	}
+	return env, nil
 }
 
 func (s *Scanner) scanMCPs(path string, existing model.ConfigRoot) ([]model.MCPServer, []Warning) {
